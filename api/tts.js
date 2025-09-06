@@ -6,16 +6,16 @@ export default async function handler(req, res) {
     if (!text) return res.status(400).json({ error: "No text provided" });
 
     const apiKey = process.env.ELEVENLABS_API_KEY;
-    const voiceId = "G17SuINrv2H9FC6nvetn";
+    const voiceId = "G17SuINrv2H9FC6nvetn"; // Your ElevenLabs voice ID
 
-    // Split text into 4000-character chunks
+    // Split long text into chunks (~3000 chars) to avoid TTS failure
+    const chunkSize = 3000;
     const chunks = [];
-    for (let i = 0; i < text.length; i += 4000) {
-      chunks.push(text.slice(i, i + 4000));
+    for (let i = 0; i < text.length; i += chunkSize) {
+      chunks.push(text.slice(i, i + chunkSize));
     }
 
     const audioBuffers = [];
-
     for (const chunk of chunks) {
       const ttsRes = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
         method: "POST",
@@ -24,7 +24,10 @@ export default async function handler(req, res) {
           "Content-Type": "application/json",
           "Accept": "audio/mpeg"
         },
-        body: JSON.stringify({ text: chunk, voice_settings: { stability: 0.75, similarity_boost: 0.75 } })
+        body: JSON.stringify({
+          text: chunk,
+          voice_settings: { stability: 0.75, similarity_boost: 0.75 }
+        })
       });
 
       if (!ttsRes.ok) {
@@ -33,8 +36,8 @@ export default async function handler(req, res) {
         return res.status(ttsRes.status).json({ error: "TTS error", details: errText });
       }
 
-      const audioBuffer = await ttsRes.arrayBuffer();
-      audioBuffers.push(Buffer.from(audioBuffer));
+      const buffer = await ttsRes.arrayBuffer();
+      audioBuffers.push(Buffer.from(buffer));
     }
 
     const fullBuffer = Buffer.concat(audioBuffers);
