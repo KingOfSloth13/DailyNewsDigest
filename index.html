@@ -40,8 +40,8 @@ audioEl.addEventListener("timeupdate", () => {
 document.getElementById("generateBtn").addEventListener("click", async () => {
   try {
     document.getElementById("generateBtn").innerText = "Generating...";
-    
-    // Example headlines — replace with real news fetching
+
+    // Replace these with your actual headlines or fetched data
     const sections = [
       { name: "Global", headlines: ["Global leaders meet to discuss climate change", "Tech summit opens in Europe"] },
       { name: "US", headlines: ["US stock market rises", "President announces new policy"] },
@@ -61,7 +61,6 @@ document.getElementById("generateBtn").addEventListener("click", async () => {
       fullScript += `Section: ${sec.name}\n${data.summary}\n\n`;
     }
 
-    // Call TTS
     const ttsRes = await fetch("/api/tts", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -71,6 +70,7 @@ document.getElementById("generateBtn").addEventListener("click", async () => {
     if (!ttsRes.ok) {
       const err = await ttsRes.json();
       alert("TTS Error: " + (err.details || err.error));
+      document.getElementById("generateBtn").innerText = "Generate & Play";
       return;
     }
 
