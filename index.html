@@ -47,14 +47,12 @@ button.secondary { background: #666; }
 <script>
 document.addEventListener('DOMContentLoaded', () => {
 
-  /* ---------- Feeds ---------- */
   const feeds = {
     global: ['http://feeds.bbci.co.uk/news/world/rss.xml','http://feeds.reuters.com/Reuters/worldNews'],
     us: ['http://rss.cnn.com/rss/cnn_us.rss','https://rss.nytimes.com/services/xml/rss/nyt/US.xml'],
     colorado: ['https://www.denverpost.com/feed/','https://coloradosun.com/feed/']
   };
 
-  /* ---------- UI Elements ---------- */
   const playBtn = document.getElementById('playBtn');
   const pauseBtn = document.getElementById('pauseBtn');
   const resumeBtn = document.getElementById('resumeBtn');
@@ -65,7 +63,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const percentEl = document.getElementById('percent');
   const metaInfo = document.getElementById('metaInfo');
 
-  /* ---------- State ---------- */
   let utterancesQueue = [];
   let totalChars = 0;
   let charsSpoken = 0;
@@ -73,7 +70,6 @@ document.addEventListener('DOMContentLoaded', () => {
   let paused = false;
   let currentIndex = 0;
 
-  /* ---------- Helpers ---------- */
   function setStatus(text){ statusEl.innerText = text; }
   function updateProgressUI(){
     const pct = totalChars ? Math.min(100, Math.round((charsSpoken/totalChars)*100)) : 0;
@@ -81,7 +77,6 @@ document.addEventListener('DOMContentLoaded', () => {
     percentEl.innerText = pct + '%';
   }
 
-  /* ---------- RSS Fetching ---------- */
   async function fetchRSS(url){
     const res = await fetch('https://api.allorigins.win/get?url=' + encodeURIComponent(url));
     if(!res.ok) throw new Error('RSS fetch failed');
@@ -92,7 +87,6 @@ document.addEventListener('DOMContentLoaded', () => {
     return Array.from(items).slice(0,5).map(i=>i.querySelector('title').textContent.trim());
   }
 
-  /* ---------- Summarizer API ---------- */
   async function getSummary(section, headlines){
     const res = await fetch('/api/summarize', {
       method:'POST',
@@ -104,14 +98,12 @@ document.addEventListener('DOMContentLoaded', () => {
     return data.summary || `No summary for ${section}.`;
   }
 
-  /* ---------- Text Utilities ---------- */
   function splitIntoSentences(text){
     const parts = text.match(/[^.!?]+[.!?]+|[^.!?]+$/g);
     if(!parts) return [text];
     return parts.map(s=>s.trim()).filter(Boolean);
   }
 
-  /* ---------- Playback Controls ---------- */
   function cancelPlayback(resetState=true){
     speechSynthesis.cancel();
     if(resetState){
@@ -200,7 +192,6 @@ document.addEventListener('DOMContentLoaded', () => {
     speakNext();
   }
 
-  /* ---------- Main Flow ---------- */
   async function playNews(){
     try{
       setStatus('Fetching headlines...');
@@ -220,19 +211,25 @@ document.addEventListener('DOMContentLoaded', () => {
       for(const section of ['global','us','colorado']){
         try{
           const s = await getSummary(section, newsData[section]);
-          summaries.push(`--- ${section.toUpperCase()} --- ${s}`);
+          summaries.push({ sectionName: section.toUpperCase(), text: s });
         }catch(err){
           console.error('Summarize error', section, err);
-          summaries.push(`--- ${section.toUpperCase()} --- Error getting summary.`);
+          summaries.push({ sectionName: section.toUpperCase(), text: `Error getting summary for ${section}.` });
         }
       }
 
-      const finalScript=`Welcome to your Daily Audio News Digest. ${summaries.join(' ')} That's the digest for today.`;
-      setStatus('Preparing audio...');
-      const sentences = splitIntoSentences(finalScript);
+      // Combine into final sentences with section headers
+      const finalSentences = [];
+      summaries.forEach(sec=>{
+        finalSentences.push(`Now entering the ${sec.sectionName} section.`); // Section announcement
+        finalSentences.push(...splitIntoSentences(sec.text));
+        finalSentences.push(`End of the ${sec.sectionName} section.`); // optional end marker
+      });
+
       const rate = Math.max(0.5,Math.min(2.5,parseFloat(speedSelect.value)||1));
       setStatus('Reading news...');
-      speakStream(sentences, rate);
+      speakStream(finalSentences, rate);
+
     }catch(err){
       console.error('Play news error:', err);
       setStatus('Error: ' + (err.message || err));
@@ -240,7 +237,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  /* ---------- Button Events ---------- */
   playBtn.addEventListener('click',()=>{cancelPlayback(true); playNews();});
   pauseBtn.addEventListener('click',pausePlayback);
   resumeBtn.addEventListener('click',resumePlayback);
