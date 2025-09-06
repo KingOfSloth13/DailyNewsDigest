@@ -10,8 +10,8 @@ export default async function handler(req, res) {
     if (!headlines || !headlines.length) return res.status(400).json({ error: "No headlines provided" });
 
     const prompt = `
-You are creating a news digest for the ${section} section. 
-Summarize these headlines in a **listener-friendly style**, include financial, political, and cultural context, and make it detailed enough to generate at least 30–40 sentences per section:
+You are creating a news digest for the ${section} section.
+Summarize these headlines in a listener-friendly style, include financial, political, cultural context, and make it detailed enough to generate at least 40 sentences per section:
 
 ${headlines.join("\n")}
 `;
