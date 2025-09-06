@@ -1,72 +1,58 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Daily Audio News Digest</title>
-  <style>
-    body { font-family: Arial, sans-serif; background:#f5f5f5; color:#222; margin:0; padding:20px; }
-    header { text-align:center; margin-bottom:12px; }
-    button { padding:10px 14px; margin:6px; border-radius:6px; border:none; cursor:pointer; background:#007bff; color:#fff; }
-    button.secondary { background:#666; }
-    #progress { width:100%; height:16px; background:#ddd; border-radius:8px; overflow:hidden; margin:12px 0; }
-    #bar { width:0%; height:100%; background:#4caf50; transition:width 0.12s linear; }
-    #status { margin:8px 0; }
-    label { display:inline-block; margin-right:8px; }
-    .controls { display:flex; gap:8px; align-items:center; flex-wrap:wrap; justify-content:center; margin-top:8px; }
-    .meta { text-align:center; font-size:0.95rem; color:#444; margin-top:8px; }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Daily Audio News Digest</title>
+<style>
+body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; color: #222; }
+h1 { text-align: center; }
+button { padding: 10px 14px; margin: 6px; border-radius: 6px; border: none; cursor: pointer; background: #007bff; color: #fff; }
+button.secondary { background: #666; }
+#progress { width: 100%; height: 16px; background: #ddd; border-radius: 8px; overflow: hidden; margin: 12px 0; }
+#bar { width: 0%; height: 100%; background: #4caf50; transition: width 0.12s linear; }
+.controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; justify-content: center; margin-top: 12px; }
+#status { margin-top: 10px; text-align: center; }
+.meta { text-align: center; font-size: 0.95rem; color: #444; margin-top: 8px; }
+</style>
 </head>
 <body>
-  <header>
-    <h1>Daily Audio News Digest</h1>
-    <p>One button: fetch → summarize → play (with speed & progress)</p>
-  </header>
 
-  <div style="text-align:center">
-    <button id="playBtn">▶️ Generate & Play</button>
-    <button id="pauseBtn" class="secondary" disabled>⏸ Pause</button>
-    <button id="resumeBtn" class="secondary" disabled>▶ Resume</button>
-    <button id="stopBtn" class="secondary" disabled>■ Stop</button>
+<h1>Daily Audio News Digest</h1>
+<div style="text-align:center">
+  <button id="playBtn">▶️ Generate & Play</button>
+  <button id="pauseBtn" class="secondary" disabled>⏸ Pause</button>
+  <button id="resumeBtn" class="secondary" disabled>▶ Resume</button>
+  <button id="stopBtn" class="secondary" disabled>■ Stop</button>
+</div>
+
+<div class="controls">
+  <label for="speed">Playback speed:</label>
+  <select id="speed">
+    <option value="1">1x</option>
+    <option value="1.25">1.25x</option>
+    <option value="1.5">1.5x</option>
+    <option value="2">2x</option>
+  </select>
+  <label>Progress:</label>
+  <div id="progress" style="width:60%;">
+    <div id="bar"></div>
   </div>
+  <div id="percent" style="min-width:70px; text-align:left;">0%</div>
+</div>
 
-  <div class="controls" style="justify-content:center; margin-top:12px;">
-    <label for="speed">Playback speed:</label>
-    <select id="speed">
-      <option value="1">1x</option>
-      <option value="1.25">1.25x</option>
-      <option value="1.5">1.5x</option>
-      <option value="2">2x</option>
-    </select>
-
-    <label style="margin-left:18px;">Reading progress:</label>
-    <div id="progress" style="width:60%;">
-      <div id="bar"></div>
-    </div>
-
-    <div id="percent" style="min-width:70px; text-align:left;">0%</div>
-  </div>
-
-  <p id="status">Idle. Press <strong>Generate & Play</strong> to begin.</p>
-  <div class="meta" id="metaInfo"></div>
+<p id="status">Idle. Press <strong>Generate & Play</strong> to begin.</p>
+<div class="meta" id="metaInfo"></div>
 
 <script>
-/* ---------- Utility / config ---------- */
+/* ---------- Configuration ---------- */
 const feeds = {
-  global: [
-    'http://feeds.bbci.co.uk/news/world/rss.xml',
-    'http://feeds.reuters.com/Reuters/worldNews'
-  ],
-  us: [
-    'http://rss.cnn.com/rss/cnn_us.rss',
-    'https://rss.nytimes.com/services/xml/rss/nyt/US.xml'
-  ],
-  colorado: [
-    'https://www.denverpost.com/feed/',
-    'https://coloradosun.com/feed/'
-  ]
+  global: ['http://feeds.bbci.co.uk/news/world/rss.xml','http://feeds.reuters.com/Reuters/worldNews'],
+  us: ['http://rss.cnn.com/rss/cnn_us.rss','https://rss.nytimes.com/services/xml/rss/nyt/US.xml'],
+  colorado: ['https://www.denverpost.com/feed/','https://coloradosun.com/feed/']
 };
 
+/* ---------- UI Elements ---------- */
 const playBtn = document.getElementById('playBtn');
 const pauseBtn = document.getElementById('pauseBtn');
 const resumeBtn = document.getElementById('resumeBtn');
@@ -77,55 +63,56 @@ const barEl = document.getElementById('bar');
 const percentEl = document.getElementById('percent');
 const metaInfo = document.getElementById('metaInfo');
 
-let utterancesQueue = [];        // queued utterances
-let totalChars = 0;             // total characters in the script
-let charsSpoken = 0;            // progressed chars
-let playing = false;            // playing flag
-let paused = false;             // paused flag
-let currentIndex = 0;           // index in sentence array
+/* ---------- State ---------- */
+let utterancesQueue = [];
+let totalChars = 0;
+let charsSpoken = 0;
+let playing = false;
+let paused = false;
+let currentIndex = 0;
 
-/* ---------- UI helpers ---------- */
-function setStatus(text) { statusEl.innerText = text; }
-function updateProgressUI() {
-  const pct = totalChars ? Math.min(100, Math.round((charsSpoken / totalChars) * 100)) : 0;
+/* ---------- Helper Functions ---------- */
+function setStatus(text){ statusEl.innerText = text; }
+function updateProgressUI(){
+  const pct = totalChars ? Math.min(100, Math.round((charsSpoken/totalChars)*100)) : 0;
   barEl.style.width = pct + '%';
   percentEl.innerText = pct + '%';
 }
 
-/* ---------- Fetch & summarise pipeline ---------- */
-async function fetchRSS(url) {
+/* ---------- RSS Fetching ---------- */
+async function fetchRSS(url){
   const res = await fetch('https://api.allorigins.win/get?url=' + encodeURIComponent(url));
-  if (!res.ok) throw new Error('RSS fetch failed');
+  if(!res.ok) throw new Error('RSS fetch failed');
   const data = await res.json();
   const parser = new DOMParser();
-  const xml = parser.parseFromString(data.contents, 'text/xml');
+  const xml = parser.parseFromString(data.contents,'text/xml');
   const items = xml.querySelectorAll('item');
-  return Array.from(items).slice(0,5).map(i => i.querySelector('title').textContent.trim());
+  return Array.from(items).slice(0,5).map(i=>i.querySelector('title').textContent.trim());
 }
 
-async function getSummary(section, headlines) {
-  // call your serverless endpoint
+/* ---------- Summarizer API ---------- */
+async function getSummary(section, headlines){
   const res = await fetch('/api/summarize', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
     body: JSON.stringify({ section, headlines })
   });
   const data = await res.json();
-  if (data.error) throw new Error('API error: ' + (data.error.details || data.error));
+  if(data.error) throw new Error('API error: ' + (data.error.details || data.error));
   return data.summary || `No summary for ${section}.`;
 }
 
-function splitIntoSentences(text) {
-  // keep punctuation, split by sentence endings
+/* ---------- Text Utilities ---------- */
+function splitIntoSentences(text){
   const parts = text.match(/[^.!?]+[.!?]+|[^.!?]+$/g);
-  if (!parts) return [text];
-  return parts.map(s => s.trim()).filter(Boolean);
+  if(!parts) return [text];
+  return parts.map(s=>s.trim()).filter(Boolean);
 }
 
-/* ---------- TTS streaming / progress logic ---------- */
-function cancelPlayback(resetState=true) {
+/* ---------- Playback Controls ---------- */
+function cancelPlayback(resetState=true){
   speechSynthesis.cancel();
-  if (resetState) {
+  if(resetState){
     utterancesQueue = [];
     charsSpoken = 0;
     totalChars = 0;
@@ -141,8 +128,8 @@ function cancelPlayback(resetState=true) {
   }
 }
 
-function pausePlayback() {
-  if (playing && !paused) {
+function pausePlayback(){
+  if(playing && !paused){
     speechSynthesis.pause();
     paused = true;
     setStatus('Paused.');
@@ -151,8 +138,8 @@ function pausePlayback() {
   }
 }
 
-function resumePlayback() {
-  if (playing && paused) {
+function resumePlayback(){
+  if(playing && paused){
     speechSynthesis.resume();
     paused = false;
     setStatus('Resuming...');
@@ -161,32 +148,19 @@ function resumePlayback() {
   }
 }
 
-function speakStream(sentences, rate) {
-  // prepare counts
-  totalChars = sentences.reduce((s, a) => s + a.length, 0);
-  charsSpoken = 0;
+function speakStream(sentences, rate){
+  totalChars = sentences.reduce((s,a)=>s+a.length,0);
+  charsSpoken=0;
   updateProgressUI();
-
-  playing = true;
-  paused = false;
-  currentIndex = 0;
-  playBtn.disabled = true;
-  pauseBtn.disabled = false;
-  resumeBtn.disabled = true;
-  stopBtn.disabled = false;
-
+  playing=true; paused=false; currentIndex=0;
+  playBtn.disabled=true; pauseBtn.disabled=false; resumeBtn.disabled=true; stopBtn.disabled=false;
   metaInfo.innerText = `Sentences: ${sentences.length} · Characters: ${totalChars}`;
 
-  // function to speak next sentence
-  const speakNext = () => {
-    if (currentIndex >= sentences.length) {
-      // done
-      playing = false;
+  const speakNext = ()=>{
+    if(currentIndex>=sentences.length){
+      playing=false;
       setStatus('Finished reading.');
-      pauseBtn.disabled = true;
-      resumeBtn.disabled = true;
-      stopBtn.disabled = true;
-      playBtn.disabled = false;
+      pauseBtn.disabled=true; resumeBtn.disabled=true; stopBtn.disabled=true; playBtn.disabled=false;
       updateProgressUI();
       return;
     }
@@ -194,120 +168,77 @@ function speakStream(sentences, rate) {
     const sentence = sentences[currentIndex];
     const beforeChars = charsSpoken;
     const utter = new SpeechSynthesisUtterance(sentence);
-    utter.rate = rate;
+    utter.rate=rate;
 
-    // onboundary fires in Chrome with charIndex for spoken position; use it if available
-    utter.onboundary = (ev) => {
-      if (ev && typeof ev.charIndex === 'number') {
+    utter.onboundary=(ev)=>{
+      if(ev && typeof ev.charIndex==='number'){
         const dynamicSpoken = beforeChars + Math.min(ev.charIndex, sentence.length);
-        // reflect dynamic progress
-        charsSpoken = Math.min(totalChars, dynamicSpoken);
+        charsSpoken=Math.min(totalChars,dynamicSpoken);
         updateProgressUI();
       }
     };
 
-    // fallback: some browsers don't fire onboundary reliably; we'll update at end of each sentence
-    utter.onend = () => {
-      // finalize sentence progress
-      charsSpoken = Math.min(totalChars, beforeChars + sentence.length);
+    utter.onend=()=>{
+      charsSpoken=Math.min(totalChars,beforeChars+sentence.length);
       updateProgressUI();
       currentIndex++;
-      // small delay (helps mobile)
-      setTimeout(() => {
-        if (!paused) speakNext();
-      }, 60);
+      setTimeout(()=>{if(!paused) speakNext();},60);
     };
 
-    // error handling
-    utter.onerror = (e) => {
+    utter.onerror=(e)=>{
       console.error('TTS error', e);
-      // skip ahead
-      charsSpoken = Math.min(totalChars, beforeChars + sentence.length);
+      charsSpoken=Math.min(totalChars,beforeChars+sentence.length);
       currentIndex++;
-      setTimeout(()=> speakNext(), 60);
+      setTimeout(()=>speakNext(),60);
     };
 
-    // speak
     speechSynthesis.speak(utter);
   };
 
   speakNext();
 }
 
-/* ---------- Main flow: fetch → summarize → speak ---------- */
-async function playNews() {
-  try {
+/* ---------- Main flow ---------- */
+async function playNews(){
+  try{
     setStatus('Fetching headlines...');
-    playBtn.disabled = true;
-    pauseBtn.disabled = true;
-    resumeBtn.disabled = true;
-    stopBtn.disabled = true;
+    playBtn.disabled=true; pauseBtn.disabled=true; resumeBtn.disabled=true; stopBtn.disabled=true;
 
-    // fetch headlines
-    const newsData = {};
-    for (const section of Object.keys(feeds)) {
-      newsData[section] = [];
-      for (const url of feeds[section]) {
-        try {
-          const titles = await fetchRSS(url);
-          newsData[section].push(...titles);
-        } catch (err) {
-          console.warn('Feed failed:', url, err);
-        }
+    const newsData={};
+    for(const section of Object.keys(feeds)){
+      newsData[section]=[];
+      for(const url of feeds[section]){
+        try{const titles = await fetchRSS(url); newsData[section].push(...titles);} 
+        catch(err){console.warn('Feed failed:', url, err);}
       }
     }
 
-    setStatus('Generating summaries (calling OpenAI)...');
-
-    // summarize each section with serverless function
-    const summaries = [];
-    for (const section of ['global','us','colorado']) {
-      try {
+    setStatus('Generating long-form summaries...');
+    const summaries=[];
+    for(const section of ['global','us','colorado']){
+      try{
         const s = await getSummary(section, newsData[section]);
         summaries.push(`--- ${section.toUpperCase()} --- ${s}`);
-      } catch (err) {
-        console.error('Summarize error for', section, err);
+      }catch(err){
+        console.error('Summarize error', section, err);
         summaries.push(`--- ${section.toUpperCase()} --- Error getting summary.`);
       }
     }
 
-    // final script
-    const finalScript = `Welcome to your Daily Audio News Digest. ${summaries.join(' ')} That's the digest for today.`;
-
+    const finalScript=`Welcome to your Daily Audio News Digest. ${summaries.join(' ')} That's the digest for today.`;
     setStatus('Preparing audio...');
-
-    // split to sentences for streaming
     const sentences = splitIntoSentences(finalScript);
-
-    // read speed
-    const rate = Math.max(0.5, Math.min(2.5, parseFloat(speedSelect.value) || 1));
-
+    const rate = Math.max(0.5,Math.min(2.5,parseFloat(speedSelect.value)||1));
     setStatus('Reading news...');
     speakStream(sentences, rate);
-
-  } catch (err) {
+  }catch(err){
     console.error('Play news error:', err);
     setStatus('Error: ' + (err.message || err));
-    playBtn.disabled = false;
-    pauseBtn.disabled = true;
-    resumeBtn.disabled = true;
-    stopBtn.disabled = true;
+    playBtn.disabled=false; pauseBtn.disabled=true; resumeBtn.disabled=true; stopBtn.disabled=true;
   }
 }
 
-/* ---------- Attach controls ---------- */
-playBtn.addEventListener('click', () => {
-  cancelPlayback(true); // clear any existing
-  playNews();
-});
-pauseBtn.addEventListener('click', pausePlayback);
-resumeBtn.addEventListener('click', resumePlayback);
-stopBtn.addEventListener('click', () => cancelPlayback(true));
-
-/* ---------- Make sure UI reflects current speechSynthesis state if externally changed ---------- */
-window.addEventListener('visibilitychange', () => {
-  // no-op but could be used to pause/resume on tab change
-});
-</script>
-</body>
-</html>
+/* ---------- Button Events ---------- */
+playBtn.addEventListener('click',()=>{cancelPlayback(true); playNews();});
+pauseBtn.addEventListener('click',pausePlayback);
+resumeBtn.addEventListener
