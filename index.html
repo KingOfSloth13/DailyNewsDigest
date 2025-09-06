@@ -1,155 +1,90 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>You Digest</title>
-  <style>
-    #barContainer { width: 100%; background: #ccc; height: 20px; margin-top: 10px; }
-    #bar { width: 0%; height: 100%; background: #4caf50; }
-  </style>
+<meta charset="UTF-8">
+<title>YouDigest News</title>
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <h1>You Digest</h1>
-  <button id="playBtn">Generate & Play</button>
-  <button id="pauseBtn" disabled>Pause</button>
-  <button id="resumeBtn" disabled>Resume</button>
-  <button id="stopBtn" disabled>Stop</button>
-  <select id="speed">
-    <option value="1">1x</option>
-    <option value="1.25">1.25x</option>
-    <option value="1.5">1.5x</option>
-    <option value="2">2x</option>
-  </select>
-  <div id="status">Idle</div>
-  <div id="barContainer"><div id="bar"></div></div>
-  <div id="percent">0%</div>
-  <div id="metaInfo"></div>
+<h1>YouDigest News</h1>
 
-  <script>
-    const feeds = {
-      global: ['http://feeds.bbci.co.uk/news/world/rss.xml','http://feeds.reuters.com/Reuters/worldNews'],
-      us: ['http://rss.cnn.com/rss/cnn_us.rss','https://rss.nytimes.com/services/xml/rss/nyt/US.xml'],
-      colorado: ['https://www.denverpost.com/feed/','https://coloradosun.com/feed/']
-    };
+<button id="generateBtn">Generate & Play</button>
 
-    const playBtn = document.getElementById('playBtn');
-    const pauseBtn = document.getElementById('pauseBtn');
-    const resumeBtn = document.getElementById('resumeBtn');
-    const stopBtn = document.getElementById('stopBtn');
-    const speedSelect = document.getElementById('speed');
-    const statusEl = document.getElementById('status');
-    const barEl = document.getElementById('bar');
-    const percentEl = document.getElementById('percent');
-    const metaInfo = document.getElementById('metaInfo');
+<div class="progress-container">
+  <div class="progress-bar" id="progressBar"></div>
+</div>
 
-    let audio = null;
+<audio id="newsAudio" controls></audio>
+<br>
+Speed:
+<select id="speedSelect">
+  <option value="1">1x</option>
+  <option value="1.5">1.5x</option>
+  <option value="2">2x</option>
+</select>
 
-    function setStatus(text){ statusEl.innerText=text; }
-    function updateProgressUI(){ 
-      if(audio) { 
-        const pct = (audio.currentTime/audio.duration)*100 || 0; 
-        barEl.style.width = pct+'%'; 
-        percentEl.innerText = Math.round(pct)+'%'; 
-      }
-    }
+<script>
+const audioEl = document.getElementById("newsAudio");
+const speedEl = document.getElementById("speedSelect");
+const progressBar = document.getElementById("progressBar");
 
-    async function fetchRSS(url){
-      const res = await fetch('https://api.allorigins.win/get?url='+encodeURIComponent(url));
-      const data = await res.json();
-      const parser = new DOMParser();
-      const xml = parser.parseFromString(data.contents,'text/xml');
-      const items = xml.querySelectorAll('item');
-      return Array.from(items).slice(0,5).map(i=>i.querySelector('title').textContent.trim());
-    }
+speedEl.addEventListener("change", () => {
+  audioEl.playbackRate = parseFloat(speedEl.value);
+});
 
-    async function getSummary(section, headlines){
-      const res = await fetch('/api/summarize', {
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ section, headlines })
+audioEl.addEventListener("timeupdate", () => {
+  const progress = (audioEl.currentTime / audioEl.duration) * 100;
+  progressBar.style.width = progress + "%";
+});
+
+document.getElementById("generateBtn").addEventListener("click", async () => {
+  try {
+    document.getElementById("generateBtn").innerText = "Generating...";
+    
+    // Example headlines — replace with real news fetching
+    const sections = [
+      { name: "Global", headlines: ["Global leaders meet to discuss climate change", "Tech summit opens in Europe"] },
+      { name: "US", headlines: ["US stock market rises", "President announces new policy"] },
+      { name: "Colorado", headlines: ["Denver hosts tech conference", "Local elections results announced"] }
+    ];
+
+    let fullScript = "";
+
+    for (const sec of sections) {
+      const res = await fetch("/api/summarize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ section: sec.name, headlines: sec.headlines })
       });
+
       const data = await res.json();
-      if(data.error) throw new Error(data.error.details || data.error);
-      return data.summary || '';
+      fullScript += `Section: ${sec.name}\n${data.summary}\n\n`;
     }
 
-    async function generateAudio(text){
-      const res = await fetch('/api/tts', {
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ text })
-      });
-      if(!res.ok) throw new Error('TTS failed');
-      const blob = await res.blob();
-      return URL.createObjectURL(blob);
+    // Call TTS
+    const ttsRes = await fetch("/api/tts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: fullScript })
+    });
+
+    if (!ttsRes.ok) {
+      const err = await ttsRes.json();
+      alert("TTS Error: " + (err.details || err.error));
+      return;
     }
 
-    async function playNews(){
-      try{
-        setStatus('Fetching headlines...');
-        playBtn.disabled=true;
+    const blob = await ttsRes.blob();
+    audioEl.src = URL.createObjectURL(blob);
+    audioEl.play();
+    document.getElementById("generateBtn").innerText = "Generate & Play";
 
-        const newsData={};
-        for(const section of Object.keys(feeds)){
-          newsData[section]=[];
-          for(const url of feeds[section]){
-            try{const titles = await fetchRSS(url); newsData[section].push(...titles);} 
-            catch(e){console.warn('Feed error',url,e);}
-          }
-        }
-
-        setStatus('Generating summaries...');
-        const summaries=[];
-        for(const section of ['global','us','colorado']){
-          try{
-            const s = await getSummary(section, newsData[section]);
-            summaries.push({ sectionName: section.toUpperCase(), text: s });
-          }catch(err){
-            summaries.push({ sectionName: section.toUpperCase(), text: `Error getting summary for ${section}.` });
-          }
-        }
-
-        // Combine with section announcements
-        let finalScript = '';
-        summaries.forEach(sec=>{
-          finalScript += `Now entering the ${sec.sectionName} section.\n` + sec.text + `\nEnd of ${sec.sectionName} section.\n`;
-        });
-
-        setStatus('Generating audio...');
-        const audioUrl = await generateAudio(finalScript);
-
-        if(audio) audio.pause();
-        audio = new Audio(audioUrl);
-        audio.playbackRate = parseFloat(speedSelect.value) || 1;
-
-        audio.onended = ()=>{
-          setStatus('Finished reading.');
-          playBtn.disabled=false;
-          pauseBtn.disabled=true;
-          resumeBtn.disabled=true;
-          stopBtn.disabled=true;
-        };
-
-        audio.ontimeupdate = updateProgressUI;
-
-        audio.play();
-        setStatus('Playing news...');
-        pauseBtn.disabled=false;
-        resumeBtn.disabled=true;
-        stopBtn.disabled=false;
-
-      } catch(err){
-        console.error(err);
-        setStatus('Error: ' + (err.message || err));
-        playBtn.disabled=false;
-      }
-    }
-
-    playBtn.addEventListener('click', playNews);
-    pauseBtn.addEventListener('click', ()=>{ if(audio) audio.pause(); pauseBtn.disabled=true; resumeBtn.disabled=false; setStatus('Paused.'); });
-    resumeBtn.addEventListener('click', ()=>{ if(audio) audio.play(); pauseBtn.disabled=false; resumeBtn.disabled=true; setStatus('Resuming...'); });
-    stopBtn.addEventListener('click', ()=>{ if(audio){audio.pause(); audio.currentTime=0;} pauseBtn.disabled=true; resumeBtn.disabled=true; stopBtn.disabled=true; playBtn.disabled=false; setStatus('Stopped.'); barEl.style.width='0%'; percentEl.innerText='0%'; });
-
-  </script>
+  } catch (err) {
+    console.error(err);
+    alert("Error generating news");
+    document.getElementById("generateBtn").innerText = "Generate & Play";
+  }
+});
+</script>
 </body>
 </html>
