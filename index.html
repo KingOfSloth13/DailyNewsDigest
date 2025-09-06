@@ -45,200 +45,209 @@ button.secondary { background: #666; }
 <div class="meta" id="metaInfo"></div>
 
 <script>
-/* ---------- Configuration ---------- */
-const feeds = {
-  global: ['http://feeds.bbci.co.uk/news/world/rss.xml','http://feeds.reuters.com/Reuters/worldNews'],
-  us: ['http://rss.cnn.com/rss/cnn_us.rss','https://rss.nytimes.com/services/xml/rss/nyt/US.xml'],
-  colorado: ['https://www.denverpost.com/feed/','https://coloradosun.com/feed/']
-};
+document.addEventListener('DOMContentLoaded', () => {
 
-/* ---------- UI Elements ---------- */
-const playBtn = document.getElementById('playBtn');
-const pauseBtn = document.getElementById('pauseBtn');
-const resumeBtn = document.getElementById('resumeBtn');
-const stopBtn = document.getElementById('stopBtn');
-const speedSelect = document.getElementById('speed');
-const statusEl = document.getElementById('status');
-const barEl = document.getElementById('bar');
-const percentEl = document.getElementById('percent');
-const metaInfo = document.getElementById('metaInfo');
-
-/* ---------- State ---------- */
-let utterancesQueue = [];
-let totalChars = 0;
-let charsSpoken = 0;
-let playing = false;
-let paused = false;
-let currentIndex = 0;
-
-/* ---------- Helper Functions ---------- */
-function setStatus(text){ statusEl.innerText = text; }
-function updateProgressUI(){
-  const pct = totalChars ? Math.min(100, Math.round((charsSpoken/totalChars)*100)) : 0;
-  barEl.style.width = pct + '%';
-  percentEl.innerText = pct + '%';
-}
-
-/* ---------- RSS Fetching ---------- */
-async function fetchRSS(url){
-  const res = await fetch('https://api.allorigins.win/get?url=' + encodeURIComponent(url));
-  if(!res.ok) throw new Error('RSS fetch failed');
-  const data = await res.json();
-  const parser = new DOMParser();
-  const xml = parser.parseFromString(data.contents,'text/xml');
-  const items = xml.querySelectorAll('item');
-  return Array.from(items).slice(0,5).map(i=>i.querySelector('title').textContent.trim());
-}
-
-/* ---------- Summarizer API ---------- */
-async function getSummary(section, headlines){
-  const res = await fetch('/api/summarize', {
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({ section, headlines })
-  });
-  const data = await res.json();
-  if(data.error) throw new Error('API error: ' + (data.error.details || data.error));
-  return data.summary || `No summary for ${section}.`;
-}
-
-/* ---------- Text Utilities ---------- */
-function splitIntoSentences(text){
-  const parts = text.match(/[^.!?]+[.!?]+|[^.!?]+$/g);
-  if(!parts) return [text];
-  return parts.map(s=>s.trim()).filter(Boolean);
-}
-
-/* ---------- Playback Controls ---------- */
-function cancelPlayback(resetState=true){
-  speechSynthesis.cancel();
-  if(resetState){
-    utterancesQueue = [];
-    charsSpoken = 0;
-    totalChars = 0;
-    playing = false;
-    paused = false;
-    currentIndex = 0;
-    updateProgressUI();
-    setStatus('Stopped.');
-    pauseBtn.disabled = true;
-    resumeBtn.disabled = true;
-    stopBtn.disabled = true;
-    playBtn.disabled = false;
-  }
-}
-
-function pausePlayback(){
-  if(playing && !paused){
-    speechSynthesis.pause();
-    paused = true;
-    setStatus('Paused.');
-    pauseBtn.disabled = true;
-    resumeBtn.disabled = false;
-  }
-}
-
-function resumePlayback(){
-  if(playing && paused){
-    speechSynthesis.resume();
-    paused = false;
-    setStatus('Resuming...');
-    pauseBtn.disabled = false;
-    resumeBtn.disabled = true;
-  }
-}
-
-function speakStream(sentences, rate){
-  totalChars = sentences.reduce((s,a)=>s+a.length,0);
-  charsSpoken=0;
-  updateProgressUI();
-  playing=true; paused=false; currentIndex=0;
-  playBtn.disabled=true; pauseBtn.disabled=false; resumeBtn.disabled=true; stopBtn.disabled=false;
-  metaInfo.innerText = `Sentences: ${sentences.length} · Characters: ${totalChars}`;
-
-  const speakNext = ()=>{
-    if(currentIndex>=sentences.length){
-      playing=false;
-      setStatus('Finished reading.');
-      pauseBtn.disabled=true; resumeBtn.disabled=true; stopBtn.disabled=true; playBtn.disabled=false;
-      updateProgressUI();
-      return;
-    }
-
-    const sentence = sentences[currentIndex];
-    const beforeChars = charsSpoken;
-    const utter = new SpeechSynthesisUtterance(sentence);
-    utter.rate=rate;
-
-    utter.onboundary=(ev)=>{
-      if(ev && typeof ev.charIndex==='number'){
-        const dynamicSpoken = beforeChars + Math.min(ev.charIndex, sentence.length);
-        charsSpoken=Math.min(totalChars,dynamicSpoken);
-        updateProgressUI();
-      }
-    };
-
-    utter.onend=()=>{
-      charsSpoken=Math.min(totalChars,beforeChars+sentence.length);
-      updateProgressUI();
-      currentIndex++;
-      setTimeout(()=>{if(!paused) speakNext();},60);
-    };
-
-    utter.onerror=(e)=>{
-      console.error('TTS error', e);
-      charsSpoken=Math.min(totalChars,beforeChars+sentence.length);
-      currentIndex++;
-      setTimeout(()=>speakNext(),60);
-    };
-
-    speechSynthesis.speak(utter);
+  /* ---------- Feeds ---------- */
+  const feeds = {
+    global: ['http://feeds.bbci.co.uk/news/world/rss.xml','http://feeds.reuters.com/Reuters/worldNews'],
+    us: ['http://rss.cnn.com/rss/cnn_us.rss','https://rss.nytimes.com/services/xml/rss/nyt/US.xml'],
+    colorado: ['https://www.denverpost.com/feed/','https://coloradosun.com/feed/']
   };
 
-  speakNext();
-}
+  /* ---------- UI Elements ---------- */
+  const playBtn = document.getElementById('playBtn');
+  const pauseBtn = document.getElementById('pauseBtn');
+  const resumeBtn = document.getElementById('resumeBtn');
+  const stopBtn = document.getElementById('stopBtn');
+  const speedSelect = document.getElementById('speed');
+  const statusEl = document.getElementById('status');
+  const barEl = document.getElementById('bar');
+  const percentEl = document.getElementById('percent');
+  const metaInfo = document.getElementById('metaInfo');
 
-/* ---------- Main flow ---------- */
-async function playNews(){
-  try{
-    setStatus('Fetching headlines...');
-    playBtn.disabled=true; pauseBtn.disabled=true; resumeBtn.disabled=true; stopBtn.disabled=true;
+  /* ---------- State ---------- */
+  let utterancesQueue = [];
+  let totalChars = 0;
+  let charsSpoken = 0;
+  let playing = false;
+  let paused = false;
+  let currentIndex = 0;
 
-    const newsData={};
-    for(const section of Object.keys(feeds)){
-      newsData[section]=[];
-      for(const url of feeds[section]){
-        try{const titles = await fetchRSS(url); newsData[section].push(...titles);} 
-        catch(err){console.warn('Feed failed:', url, err);}
-      }
-    }
-
-    setStatus('Generating long-form summaries...');
-    const summaries=[];
-    for(const section of ['global','us','colorado']){
-      try{
-        const s = await getSummary(section, newsData[section]);
-        summaries.push(`--- ${section.toUpperCase()} --- ${s}`);
-      }catch(err){
-        console.error('Summarize error', section, err);
-        summaries.push(`--- ${section.toUpperCase()} --- Error getting summary.`);
-      }
-    }
-
-    const finalScript=`Welcome to your Daily Audio News Digest. ${summaries.join(' ')} That's the digest for today.`;
-    setStatus('Preparing audio...');
-    const sentences = splitIntoSentences(finalScript);
-    const rate = Math.max(0.5,Math.min(2.5,parseFloat(speedSelect.value)||1));
-    setStatus('Reading news...');
-    speakStream(sentences, rate);
-  }catch(err){
-    console.error('Play news error:', err);
-    setStatus('Error: ' + (err.message || err));
-    playBtn.disabled=false; pauseBtn.disabled=true; resumeBtn.disabled=true; stopBtn.disabled=true;
+  /* ---------- Helpers ---------- */
+  function setStatus(text){ statusEl.innerText = text; }
+  function updateProgressUI(){
+    const pct = totalChars ? Math.min(100, Math.round((charsSpoken/totalChars)*100)) : 0;
+    barEl.style.width = pct + '%';
+    percentEl.innerText = pct + '%';
   }
-}
 
-/* ---------- Button Events ---------- */
-playBtn.addEventListener('click',()=>{cancelPlayback(true); playNews();});
-pauseBtn.addEventListener('click',pausePlayback);
-resumeBtn.addEventListener
+  /* ---------- RSS Fetching ---------- */
+  async function fetchRSS(url){
+    const res = await fetch('https://api.allorigins.win/get?url=' + encodeURIComponent(url));
+    if(!res.ok) throw new Error('RSS fetch failed');
+    const data = await res.json();
+    const parser = new DOMParser();
+    const xml = parser.parseFromString(data.contents,'text/xml');
+    const items = xml.querySelectorAll('item');
+    return Array.from(items).slice(0,5).map(i=>i.querySelector('title').textContent.trim());
+  }
+
+  /* ---------- Summarizer API ---------- */
+  async function getSummary(section, headlines){
+    const res = await fetch('/api/summarize', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ section, headlines })
+    });
+    const data = await res.json();
+    if(data.error) throw new Error('API error: ' + (data.error.details || data.error));
+    return data.summary || `No summary for ${section}.`;
+  }
+
+  /* ---------- Text Utilities ---------- */
+  function splitIntoSentences(text){
+    const parts = text.match(/[^.!?]+[.!?]+|[^.!?]+$/g);
+    if(!parts) return [text];
+    return parts.map(s=>s.trim()).filter(Boolean);
+  }
+
+  /* ---------- Playback Controls ---------- */
+  function cancelPlayback(resetState=true){
+    speechSynthesis.cancel();
+    if(resetState){
+      utterancesQueue = [];
+      charsSpoken = 0;
+      totalChars = 0;
+      playing = false;
+      paused = false;
+      currentIndex = 0;
+      updateProgressUI();
+      setStatus('Stopped.');
+      pauseBtn.disabled = true;
+      resumeBtn.disabled = true;
+      stopBtn.disabled = true;
+      playBtn.disabled = false;
+    }
+  }
+
+  function pausePlayback(){
+    if(playing && !paused){
+      speechSynthesis.pause();
+      paused = true;
+      setStatus('Paused.');
+      pauseBtn.disabled = true;
+      resumeBtn.disabled = false;
+    }
+  }
+
+  function resumePlayback(){
+    if(playing && paused){
+      speechSynthesis.resume();
+      paused = false;
+      setStatus('Resuming...');
+      pauseBtn.disabled = false;
+      resumeBtn.disabled = true;
+    }
+  }
+
+  function speakStream(sentences, rate){
+    totalChars = sentences.reduce((s,a)=>s+a.length,0);
+    charsSpoken=0;
+    updateProgressUI();
+    playing=true; paused=false; currentIndex=0;
+    playBtn.disabled=true; pauseBtn.disabled=false; resumeBtn.disabled=true; stopBtn.disabled=false;
+    metaInfo.innerText = `Sentences: ${sentences.length} · Characters: ${totalChars}`;
+
+    const speakNext = ()=>{
+      if(currentIndex>=sentences.length){
+        playing=false;
+        setStatus('Finished reading.');
+        pauseBtn.disabled=true; resumeBtn.disabled=true; stopBtn.disabled=true; playBtn.disabled=false;
+        updateProgressUI();
+        return;
+      }
+
+      const sentence = sentences[currentIndex];
+      const beforeChars = charsSpoken;
+      const utter = new SpeechSynthesisUtterance(sentence);
+      utter.rate=rate;
+
+      utter.onboundary=(ev)=>{
+        if(ev && typeof ev.charIndex==='number'){
+          const dynamicSpoken = beforeChars + Math.min(ev.charIndex, sentence.length);
+          charsSpoken=Math.min(totalChars,dynamicSpoken);
+          updateProgressUI();
+        }
+      };
+
+      utter.onend=()=>{
+        charsSpoken=Math.min(totalChars,beforeChars+sentence.length);
+        updateProgressUI();
+        currentIndex++;
+        setTimeout(()=>{if(!paused) speakNext();},60);
+      };
+
+      utter.onerror=(e)=>{
+        console.error('TTS error', e);
+        charsSpoken=Math.min(totalChars,beforeChars+sentence.length);
+        currentIndex++;
+        setTimeout(()=>speakNext(),60);
+      };
+
+      speechSynthesis.speak(utter);
+    };
+
+    speakNext();
+  }
+
+  /* ---------- Main Flow ---------- */
+  async function playNews(){
+    try{
+      setStatus('Fetching headlines...');
+      playBtn.disabled=true; pauseBtn.disabled=true; resumeBtn.disabled=true; stopBtn.disabled=true;
+
+      const newsData={};
+      for(const section of Object.keys(feeds)){
+        newsData[section]=[];
+        for(const url of feeds[section]){
+          try{const titles = await fetchRSS(url); newsData[section].push(...titles);} 
+          catch(err){console.warn('Feed failed:', url, err);}
+        }
+      }
+
+      setStatus('Generating long-form summaries...');
+      const summaries=[];
+      for(const section of ['global','us','colorado']){
+        try{
+          const s = await getSummary(section, newsData[section]);
+          summaries.push(`--- ${section.toUpperCase()} --- ${s}`);
+        }catch(err){
+          console.error('Summarize error', section, err);
+          summaries.push(`--- ${section.toUpperCase()} --- Error getting summary.`);
+        }
+      }
+
+      const finalScript=`Welcome to your Daily Audio News Digest. ${summaries.join(' ')} That's the digest for today.`;
+      setStatus('Preparing audio...');
+      const sentences = splitIntoSentences(finalScript);
+      const rate = Math.max(0.5,Math.min(2.5,parseFloat(speedSelect.value)||1));
+      setStatus('Reading news...');
+      speakStream(sentences, rate);
+    }catch(err){
+      console.error('Play news error:', err);
+      setStatus('Error: ' + (err.message || err));
+      playBtn.disabled=false; pauseBtn.disabled=true; resumeBtn.disabled=true; stopBtn.disabled=true;
+    }
+  }
+
+  /* ---------- Button Events ---------- */
+  playBtn.addEventListener('click',()=>{cancelPlayback(true); playNews();});
+  pauseBtn.addEventListener('click',pausePlayback);
+  resumeBtn.addEventListener('click',resumePlayback);
+  stopBtn.addEventListener('click',()=>cancelPlayback(true));
+
+});
+</script>
+
+</body>
+</html>
