@@ -8,7 +8,8 @@ export default async function handler(req, res) {
     const apiKey = process.env.ELEVENLABS_API_KEY;
     if (!apiKey) return res.status(500).json({ error: "Missing ElevenLabs API key" });
 
-    const voiceId = "YOUR_VOICE_ID"; // Replace with your ElevenLabs voice ID
+    // ✅ Your ElevenLabs Voice ID
+    const voiceId = "G17SuINrv2H9FC6nvetn";
 
     const ttsRes = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
       method: "POST",
@@ -17,11 +18,15 @@ export default async function handler(req, res) {
         "Content-Type": "application/json",
         "Accept": "audio/mpeg"
       },
-      body: JSON.stringify({ text, voice_settings: { stability: 0.75, similarity_boost: 0.75 } })
+      body: JSON.stringify({
+        text,
+        voice_settings: { stability: 0.75, similarity_boost: 0.75 }
+      })
     });
 
     if (!ttsRes.ok) {
       const errText = await ttsRes.text();
+      console.error("ElevenLabs TTS error:", errText);
       return res.status(ttsRes.status).json({ error: "ElevenLabs TTS error", details: errText });
     }
 
@@ -30,7 +35,7 @@ export default async function handler(req, res) {
     res.send(Buffer.from(audioBuffer));
 
   } catch (error) {
-    console.error(error);
+    console.error("Server error:", error);
     res.status(500).json({ error: "Server error", details: error.message });
   }
 }
