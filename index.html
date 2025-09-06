@@ -10,38 +10,7 @@
   <p id="status">Press the button to begin.</p>
 
   <script>
-    // 🎵 Intro and outro music pool
-    const introMusicList = [
-      'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3',
-      'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3'
-    ];
-    const outroMusicList = [
-      'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3',
-      'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3'
-    ];
-
-    function getRandom(list) {
-      return list[Math.floor(Math.random() * list.length)];
-    }
-
     async function playNews(){
-      const status = document.getElementById('status');
-      status.innerText = 'Preparing your digest...';
-
-      // 🎵 Try playing intro music, but don’t get stuck if it fails
-      try {
-        const introAudio = new Audio(getRandom(introMusicList));
-        await introAudio.play();
-        introAudio.onended = () => {
-          startNews(); // begin after music ends
-        };
-      } catch (err) {
-        console.warn("Intro music failed, starting news immediately:", err);
-        startNews();
-      }
-    }
-
-    async function startNews(){
       const status = document.getElementById('status');
       status.innerText = 'Fetching headlines...';
 
@@ -80,12 +49,6 @@
 
       status.innerText = 'Reading news...';
       speak(finalScript, ()=>{
-        try {
-          const outroAudio = new Audio(getRandom(outroMusicList));
-          outroAudio.play();
-        } catch(err){
-          console.warn("Outro music failed:", err);
-        }
         status.innerText = 'Digest finished!';
       });
     }
@@ -115,7 +78,7 @@
 
     function speak(text, onEnd){
       const utterance = new SpeechSynthesisUtterance(text);
-      utterance.rate = 1.0; // normal speed (you can speed up manually on phone)
+      utterance.rate = 1.0; 
       utterance.onend = onEnd;
       speechSynthesis.speak(utterance);
     }
