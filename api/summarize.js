@@ -1,49 +1,33 @@
+import OpenAI from "openai";
+
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
   try {
-    if (!process.env.OPENAI_API_KEY) return res.status(500).json({ error: "Missing OpenAI API key" });
     const { section, headlines } = req.body;
-    if (!headlines || headlines.length === 0) return res.status(400).json({ error: "No headlines provided" });
+    if (!headlines || !headlines.length) return res.status(400).json({ error: "No headlines provided" });
 
-    const completion = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "gpt-4o-mini",
-        messages: [
-          {
-            role: "system",
-            content: `
-You are a professional podcast news narrator. Expand each headline into long-form narration with context, background, and implications. 
-Use a natural, conversational tone as if reading on air. Each section should last ~15–20 minutes.
-Always start with a spoken announcement: "Now entering the ${section.toUpperCase()} section."`
-          },
-          {
-            role: "user",
-            content: `You are narrating the ${section} section. Use these headlines: ${headlines.join(" | ")}`
-          }
-        ],
-        max_tokens: 6000
-      }),
+    const prompt = `
+You are creating a news digest for the ${section} section. 
+Summarize these headlines in a **listener-friendly style**, include financial, political, and cultural context, and make it detailed enough to generate at least 30–40 sentences per section:
+
+${headlines.join("\n")}
+`;
+
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4",
+      messages: [{ role: "user", content: prompt }],
+      temperature: 0.7,
+      max_tokens: 4000
     });
 
-    if (!completion.ok) {
-      const errText = await completion.text();
-      return res.status(completion.status).json({ error: "OpenAI API error", details: errText });
-    }
-
-    const data = await completion.json();
-    const summary = data.choices?.[0]?.message?.content?.trim();
-    if (!summary) return res.status(500).json({ error: "No script returned from OpenAI", details: data });
-
-    return res.status(200).json({ summary });
+    const summary = completion.choices[0].message.content;
+    res.status(200).json({ summary });
 
   } catch (error) {
-    console.error(error);
-    return res.status(500).json({ error: "Server error", details: error.message });
+    console.error("Summarize error:", error);
+    res.status(500).json({ error: error.message });
   }
 }
